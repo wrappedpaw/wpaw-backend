@@ -3,7 +3,7 @@ import { BigNumber } from "ethers";
 import config from "../config";
 import { UsersDepositsStorage } from "../storage/UsersDepositsStorage";
 import Withdrawal from "../models/operations/Withdrawal";
-import SwapWBANToBan from "../models/operations/SwapWBANToBan";
+import SwapWPAWToPaw from "../models/operations/SwapWPAWToPaw";
 
 class UsersDepositsService {
 	private usersDepositsStorage: UsersDepositsStorage;
@@ -21,40 +21,40 @@ class UsersDepositsService {
 		return balance;
 	}
 
-	async hasPendingClaim(banAddress: string): Promise<boolean> {
-		return this.usersDepositsStorage.hasPendingClaim(banAddress);
+	async hasPendingClaim(pawAddress: string): Promise<boolean> {
+		return this.usersDepositsStorage.hasPendingClaim(pawAddress);
 	}
 
 	async storePendingClaim(
-		banAddress: string,
+		pawAddress: string,
 		blockchainAddress: string
 	): Promise<boolean> {
-		if (await this.usersDepositsStorage.hasPendingClaim(banAddress)) {
+		if (await this.usersDepositsStorage.hasPendingClaim(pawAddress)) {
 			return false;
 		}
 		return this.usersDepositsStorage.storePendingClaim(
-			banAddress,
+			pawAddress,
 			blockchainAddress
 		);
 	}
 
-	async isClaimed(banAddress: string): Promise<boolean> {
-		return this.usersDepositsStorage.isClaimed(banAddress);
+	async isClaimed(pawAddress: string): Promise<boolean> {
+		return this.usersDepositsStorage.isClaimed(pawAddress);
 	}
 
 	async hasClaim(
-		banAddress: string,
+		pawAddress: string,
 		blockchainAddress: string
 	): Promise<boolean> {
-		return this.usersDepositsStorage.hasClaim(banAddress, blockchainAddress);
+		return this.usersDepositsStorage.hasClaim(pawAddress, blockchainAddress);
 	}
 
-	async confirmClaim(banAddress: string): Promise<boolean> {
-		return this.usersDepositsStorage.confirmClaim(banAddress);
+	async confirmClaim(pawAddress: string): Promise<boolean> {
+		return this.usersDepositsStorage.confirmClaim(pawAddress);
 	}
 
 	async storeUserDeposit(
-		banAddress: string,
+		pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
@@ -62,18 +62,18 @@ class UsersDepositsService {
 		// check if the transaction wasn't already ingested!
 		if (
 			await this.usersDepositsStorage.containsUserDepositTransaction(
-				banAddress,
+				pawAddress,
 				hash
 			)
 		) {
 			this.log.warn(
-				`User deposit transaction ${hash} from ${banAddress} was already processed. Skipping it...`
+				`User deposit transaction ${hash} from ${pawAddress} was already processed. Skipping it...`
 			);
 			return;
 		}
 		// store the user deposit
 		this.usersDepositsStorage.storeUserDeposit(
-			banAddress,
+			pawAddress,
 			amount,
 			timestamp,
 			hash
@@ -84,13 +84,13 @@ class UsersDepositsService {
 		withdrawal: Withdrawal
 	): Promise<boolean> {
 		return this.usersDepositsStorage.containsUserWithdrawalRequest(
-			withdrawal.banWallet,
+			withdrawal.pawWallet,
 			withdrawal.timestamp
 		);
 	}
 
 	async storeUserWithdrawal(
-		banAddress: string,
+		pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
@@ -98,34 +98,34 @@ class UsersDepositsService {
 		// check if the transaction wasn't already ingested!
 		if (
 			await this.usersDepositsStorage.containsUserWithdrawalRequest(
-				banAddress,
+				pawAddress,
 				timestamp
 			)
 		) {
 			this.log.warn(
-				`User withdrawal request ${hash} from ${banAddress} was already processed. Skipping it...`
+				`User withdrawal request ${hash} from ${pawAddress} was already processed. Skipping it...`
 			);
 			return;
 		}
 		// store the user withdrawal
 		this.usersDepositsStorage.storeUserWithdrawal(
-			banAddress,
+			pawAddress,
 			amount,
 			timestamp,
 			hash
 		);
 	}
 
-	async storeUserSwapToWBan(
-		banWallet: string,
+	async storeUserSwapToWPaw(
+		pawWallet: string,
 		blockchainWallet: string,
 		amount: BigNumber,
 		timestamp: number,
 		receipt: string,
 		uuid: string
 	): Promise<void> {
-		return this.usersDepositsStorage.storeUserSwapToWBan(
-			banWallet,
+		return this.usersDepositsStorage.storeUserSwapToWPaw(
+			pawWallet,
 			blockchainWallet,
 			amount,
 			timestamp,
@@ -142,27 +142,27 @@ class UsersDepositsService {
 		return this.usersDepositsStorage.setLastBlockchainBlockProcessed(block);
 	}
 
-	async storeUserSwapToBan(event: SwapWBANToBan): Promise<void> {
-		return this.usersDepositsStorage.storeUserSwapToBan(event);
+	async storeUserSwapToPaw(event: SwapWPAWToPaw): Promise<void> {
+		return this.usersDepositsStorage.storeUserSwapToPaw(event);
 	}
 
-	async containsUserSwapToBan(event: SwapWBANToBan): Promise<boolean> {
-		return this.usersDepositsStorage.swapToBanWasAlreadyDone(event);
-	}
-
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async getDeposits(banWallet: string): Promise<Array<any>> {
-		return this.usersDepositsStorage.getDeposits(banWallet);
+	async containsUserSwapToPaw(event: SwapWPAWToPaw): Promise<boolean> {
+		return this.usersDepositsStorage.swapToPawWasAlreadyDone(event);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getWithdrawals(banWallet: string): Promise<Array<any>> {
-		return this.usersDepositsStorage.getWithdrawals(banWallet);
+	async getDeposits(pawWallet: string): Promise<Array<any>> {
+		return this.usersDepositsStorage.getDeposits(pawWallet);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getSwaps(blockchainAddress: string, banWallet: string): Promise<Array<any>> {
-		return this.usersDepositsStorage.getSwaps(blockchainAddress, banWallet);
+	getWithdrawals(pawWallet: string): Promise<Array<any>> {
+		return this.usersDepositsStorage.getWithdrawals(pawWallet);
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	getSwaps(blockchainAddress: string, pawWallet: string): Promise<Array<any>> {
+		return this.usersDepositsStorage.getSwaps(blockchainAddress, pawWallet);
 	}
 }
 

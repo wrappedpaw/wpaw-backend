@@ -1,17 +1,17 @@
-import BananoUserDeposit from "./BananoUserDeposit";
-import BananoUserWithdrawal from "./BananoUserWithdrawal";
-import SwapBanToWBAN from "./SwapBanToWBAN";
-import SwapWBANToBan from "./SwapWBANToBan";
+import PawUserDeposit from "./PawUserDeposit";
+import PawUserWithdrawal from "./PawUserWithdrawal";
+import SwapPawToWPAW from "./SwapPawToWPAW";
+import SwapWPAWToPaw from "./SwapWPAWToPaw";
 
 export declare type Operation =
-	| BananoUserDeposit
-	| BananoUserWithdrawal
-	| SwapBanToWBAN
-	| SwapWBANToBan;
+	| PawUserDeposit
+	| PawUserWithdrawal
+	| SwapPawToWPAW
+	| SwapWPAWToPaw;
 
 export enum OperationsNames {
-	BananoDeposit = "banano-deposit",
-	BananoWithdrawal = "banano-withdrawal",
-	SwapToWBAN = "swap-ban-to-wban",
-	SwapToBAN = "swap-wban-to-ban",
+	PawDeposit = "paw-deposit",
+	PawWithdrawal = "paw-withdrawal",
+	SwapToWPAW = "swap-paw-to-wpaw",
+	SwapToPAW = "swap-wpaw-to-paw",
 }

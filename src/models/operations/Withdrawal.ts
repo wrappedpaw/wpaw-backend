@@ -1,5 +1,5 @@
 declare type Withdrawal = {
-	banWallet: string;
+	pawWallet: string;
 	blockchainWallet: string;
 	amount: string;
 	timestamp: number;

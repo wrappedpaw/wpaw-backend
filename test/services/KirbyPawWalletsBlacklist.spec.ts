@@ -1,9 +1,9 @@
 import { expect } from "chai";
-import { BananoWalletsBlacklist } from "../../src/services/BananoWalletsBlacklist";
-import KirbyBananoWalletsBlacklist from "../../src/services/KirbyBananoWalletsBlacklist";
+import { PawWalletsBlacklist } from "../../src/services/PawWalletsBlacklist";
+import KirbyPawWalletsBlacklist from "../../src/services/KirbyPawWalletsBlacklist";
 
-describe("Banano Wallets Blacklist", () => {
-	let svc: BananoWalletsBlacklist = new KirbyBananoWalletsBlacklist();
+describe("Paw Wallets Blacklist", () => {
+	let svc: PawWalletsBlacklist = new KirbyPawWalletsBlacklist();
 
 	it("Checks that CoinEx hot wallet is blacklisted", async () => {
 		const coinex = await svc.isBlacklisted(
@@ -19,7 +19,7 @@ describe("Banano Wallets Blacklist", () => {
 		);
 	});
 
-	it("Checks that wBAN donations wallet is not blacklisted", async () => {
+	it("Checks that wPAW donations wallet is not blacklisted", async () => {
 		expect(
 			await svc.isBlacklisted(
 				"ban_1wban1mwe1ywc7dtknaqdbog5g3ah333acmq8qxo5anibjqe4fqz9x3xz6ky"

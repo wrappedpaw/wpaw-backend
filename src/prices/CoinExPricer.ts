@@ -9,11 +9,17 @@ class CoinExPricer implements TokenPricer {
 	}
 
 	async getPriceInUSD(): Promise<number> {
-		const resp = await axios.request({
+		/*const resp = await axios.request({
 			url: `https://api.coinex.com/v1/market/ticker?market=${this.market}`,
 		});
 		const apiResponse = resp.data;
 		return Number.parseFloat(apiResponse.data.ticker.last);
+		*/
+		const resp = await axios.request({
+			url: `https://api.vitex.net/api/v2/market?symbol=PAW-000_USDT-000`,
+		});
+		const apiResponse = resp.data;
+		return Number.parseFloat(apiResponse.data.lastPrice);
 	}
 }
 

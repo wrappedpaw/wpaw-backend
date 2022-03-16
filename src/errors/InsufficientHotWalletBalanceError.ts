@@ -5,9 +5,9 @@ class InsufficientHotWalletBalanceError extends Error {
 		super(
 			`Hot wallet balance of ${ethers.utils.formatEther(
 				available
-			)} BAN is not enough to proceed with a withdrawal of ${ethers.utils.formatEther(
+			)} PAW is not enough to proceed with a withdrawal of ${ethers.utils.formatEther(
 				expected
-			)} BAN.`
+			)} PAW.`
 		);
 		Object.setPrototypeOf(this, InsufficientHotWalletBalanceError.prototype);
 	}

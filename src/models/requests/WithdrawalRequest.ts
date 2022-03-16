@@ -1,6 +1,6 @@
 type WithdrawalRequest = {
 	amount: number;
-	ban: string;
+	paw: string;
 	blockchain: string;
 	sig: string;
 };

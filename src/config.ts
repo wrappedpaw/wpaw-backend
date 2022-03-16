@@ -24,21 +24,21 @@ const log: Logger = new Logger({
 });
 
 export default {
-	BananoUsersDepositsHotWallet:
-		process.env.BANANO_USERS_DEPOSITS_HOT_WALLET ?? "",
-	BananoUsersDepositsColdWallet:
-		process.env.BANANO_USERS_DEPOSITS_COLD_WALLET ?? "",
-	BananoSeed: process.env.BANANO_SEED ?? "",
-	BananoSeedIdx: Number.parseInt(process.env.BANANO_SEED_INDEX ?? "0", 10),
-	BananoRepresentative: process.env.BANANO_REPRESENTATIVE ?? "",
-	BananoWebSocketsAPI: process.env.BANANO_WS_API ?? "",
-	BananoRPCAPI: process.env.BANANO_RPC_API ?? "",
-	BananoPendingTransactionsThreadEnabled:
-		process.env.BANANO_PENDING_TXN_THREAD ?? true,
-	BananoUsersDepositsHotWalletMinimum:
-		process.env.BANANO_USERS_DEPOSITS_HOT_WALLET_MIN ?? "0",
-	BananoUsersDepositsHotWalletToColdWalletRatio:
-		process.env.BANANO_USERS_DEPOSITS_HOT_WALLET_TO_COLD_WALLET_RATIO ?? "0.2",
+	PawUsersDepositsHotWallet:
+		process.env.PAW_USERS_DEPOSITS_HOT_WALLET ?? "",
+	PawUsersDepositsColdWallet:
+		process.env.PAW_USERS_DEPOSITS_COLD_WALLET ?? "",
+	PawSeed: process.env.PAW_SEED ?? "",
+	PawSeedIdx: Number.parseInt(process.env.PAW_SEED_INDEX ?? "0", 10),
+	PawRepresentative: process.env.PAW_REPRESENTATIVE ?? "",
+	PawWebSocketsAPI: process.env.PAW_WS_API ?? "",
+	PawRPCAPI: process.env.PAW_RPC_API ?? "",
+	PawPendingTransactionsThreadEnabled:
+		process.env.PAW_PENDING_TXN_THREAD ?? true,
+	PawUsersDepositsHotWalletMinimum:
+		process.env.PAW_USERS_DEPOSITS_HOT_WALLET_MIN ?? "0",
+	PawUsersDepositsHotWalletToColdWalletRatio:
+		process.env.PAW_USERS_DEPOSITS_HOT_WALLET_TO_COLD_WALLET_RATIO ?? "0.2",
 
 	BlockchainJsonRpc: process.env.BC_JSON_RPC_URL ?? "",
 	BlockchainBlockExplorerUrl: process.env.BC_BLOCK_EXPLORER_URL ?? "",
@@ -60,7 +60,7 @@ export default {
 
 	BlockchainDexTokensList: process.env.BC_DEX_TOKENS_LIST_URL ?? "",
 
-	WBANContractAddress: process.env.WBAN_CONTRACT_ADDRESS ?? "",
+	WPAWContractAddress: process.env.WPAW_CONTRACT_ADDRESS ?? "",
 
 	RedisHost: process.env.REDIS_HOST ?? "",
 

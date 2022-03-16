@@ -1,4 +1,4 @@
-declare type SwapBanToWBAN = {
+declare type SwapPawToWPAW = {
 	from: string;
 	amount: number;
 	blockchainWallet: string;
@@ -6,4 +6,4 @@ declare type SwapBanToWBAN = {
 	timestamp: number;
 };
 
-export default SwapBanToWBAN;
+export default SwapPawToWPAW;

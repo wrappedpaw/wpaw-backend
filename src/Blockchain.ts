@@ -1,24 +1,24 @@
 import { ethers, BigNumber, Wallet } from "ethers";
 import { Logger } from "tslog";
 import {
-	WBANToken,
+	WPAWToken,
 	// eslint-disable-next-line camelcase
-	WBANToken__factory,
-} from "wban-smart-contract";
-import SwapWBANToBan from "./models/operations/SwapWBANToBan";
-import { SwapToBanEventListener } from "./models/listeners/SwapToBanEventListener";
+	WPAWToken__factory,
+} from "wpaw-smart-contract";
+import SwapWPAWToPaw from "./models/operations/SwapWPAWToPaw";
+import { SwapToPawEventListener } from "./models/listeners/SwapToPawEventListener";
 import { UsersDepositsService } from "./services/UsersDepositsService";
 import config from "./config";
 import BlockchainScanQueue from "./services/queuing/BlockchainScanQueue";
 
 class Blockchain {
-	private wBAN!: WBANToken;
+	private wPAW!: WPAWToken;
 
 	private wallet!: Wallet;
 
 	private provider!: ethers.providers.JsonRpcProvider;
 
-	private listeners: SwapToBanEventListener[] = [];
+	private listeners: SwapToPawEventListener[] = [];
 
 	private usersDepositsService: UsersDepositsService;
 
@@ -45,28 +45,28 @@ class Blockchain {
 				config.BlockchainWalletMnemonic,
 				`m/44'/60'/0'/0/${config.BlockchainWalletMnemonicSignerIndex}`
 			).connect(this.provider);
-			this.wBAN = WBANToken__factory.connect(
-				config.WBANContractAddress,
+			this.wPAW = WPAWToken__factory.connect(
+				config.WPAWContractAddress,
 				this.wallet
 			);
-			// listen for `SwapToBan` events
-			this.wBAN.on(
-				this.wBAN.filters.SwapToBan(null, null, null),
+			// listen for `SwapToPaw` events
+			this.wPAW.on(
+				this.wPAW.filters.SwapToPaw(null, null, null),
 				async (
 					blockchainWallet: string,
-					banWallet: string,
+					pawWallet: string,
 					amount: BigNumber,
 					event: ethers.Event
 				) => {
 					const block = await this.provider.getBlock(event.blockNumber);
 					const { timestamp } = block;
-					const wbanBalance = await this.wBAN.balanceOf(blockchainWallet);
+					const wpawBalance = await this.wPAW.balanceOf(blockchainWallet);
 					await this.provider.waitForTransaction(event.transactionHash, 5);
-					await this.handleSwapToBanEvents({
+					await this.handleSwapToPawEvents({
 						blockchainWallet,
-						banWallet,
+						pawWallet,
 						amount: ethers.utils.formatEther(amount),
-						wbanBalance: ethers.utils.formatEther(wbanBalance),
+						wpawBalance: ethers.utils.formatEther(wpawBalance),
 						hash: event.transactionHash,
 						timestamp: timestamp * 1_000,
 					});
@@ -97,7 +97,7 @@ class Blockchain {
 		this.log.debug(
 			`Forging mint receipt for ${ethers.utils.formatEther(
 				amount
-			)} BAN to ${address}`
+			)} PAW to ${address}`
 		);
 		const uuid = Date.now();
 		const payload = ethers.utils.defaultAbiCoder.encode(
@@ -108,11 +108,12 @@ class Blockchain {
 		const receipt = await this.wallet.signMessage(
 			ethers.utils.arrayify(payloadHash)
 		);
-		const wbanBalance: BigNumber = await this.wBAN.balanceOf(address);
+		
+		const wpawBalance: BigNumber = await this.wPAW.balanceOf(address);
 		return {
 			receipt,
 			uuid,
-			wbanBalance,
+			wpawBalance,
 		};
 	}
 
@@ -153,26 +154,26 @@ class Blockchain {
 		blockTo: number
 	): Promise<string> {
 		try {
-			const logs = await this.wBAN.queryFilter(
-				this.wBAN.filters.SwapToBan(null, null, null),
+			const logs = await this.wPAW.queryFilter(
+				this.wPAW.filters.SwapToPaw(null, null, null),
 				blockFrom,
 				blockTo
 			);
 			console.debug(logs);
 			const events = await Promise.all(
-				logs.map(async (log) => {
+				logs.map(async (log:any) => {
 					console.debug(log);
-					const parsedLog = this.wBAN.interface.parseLog(log);
+					const parsedLog = this.wPAW.interface.parseLog(log);
 					console.debug(parsedLog);
 					const block = await this.provider.getBlock(log.blockNumber);
 					const { timestamp } = block;
-					const { from, banAddress, amount } = parsedLog.args;
-					const wbanBalance = await this.wBAN.balanceOf(from);
+					const { from, pawAddress, amount } = parsedLog.args;
+					const wpawBalance = await this.wPAW.balanceOf(from);
 					return {
 						blockchainWallet: from,
-						banWallet: banAddress,
+						pawWallet: pawAddress,
 						amount: ethers.utils.formatEther(BigNumber.from(amount)),
-						wbanBalance: ethers.utils.formatEther(wbanBalance),
+						wpawBalance: ethers.utils.formatEther(wpawBalance),
 						hash: log.transactionHash,
 						timestamp: timestamp * 1_000,
 						checkUserBalance: false,
@@ -180,7 +181,7 @@ class Blockchain {
 				})
 			);
 			await Promise.all(
-				events.map((event) => this.handleSwapToBanEvents(event))
+				events.map((event) => this.handleSwapToPawEvents(event))
 			);
 			this.usersDepositsService.setLastBlockchainBlockProcessed(blockTo);
 			return `Processed blocks slice from ${blockFrom} to ${blockTo}...`;
@@ -192,16 +193,16 @@ class Blockchain {
 			throw err;
 		}
 	}
-
-	private async handleSwapToBanEvents(swap: SwapWBANToBan): Promise<void> {
+	//private async handleSwapToPawEvents(swap: SwapWPAWToPaw): Promise<void> {
+	private async handleSwapToPawEvents(swap: any): Promise<void> {
 		this.log.debug(
-			`Detected a SwapToBan event. From: ${swap.blockchainWallet}, to: ${swap.banWallet}, amount: ${swap.amount}, hash: ${swap.hash}`
+			`Detected a SwapToPaw event. From: ${swap.blockchainWallet}, to: ${swap.pawWallet}, amount: ${swap.amount}, hash: ${swap.hash}`
 		);
 		if (!swap.blockchainWallet) {
 			throw new Error("Missing Blockchain address in Blockchain event!");
 		}
-		if (!swap.banWallet) {
-			throw new Error("Missing BAN address in Blockchain event!");
+		if (!swap.pawWallet) {
+			throw new Error("Missing PAW address in Blockchain event!");
 		}
 		if (!swap.amount) {
 			throw new Error("Missing amount in Blockchain event!");
@@ -210,7 +211,7 @@ class Blockchain {
 		this.listeners.forEach((listener) => listener(swap));
 	}
 
-	onSwapToBAN(listener: SwapToBanEventListener): void {
+	onSwapToPAW(listener: SwapToPawEventListener): void {
 		this.listeners.push(listener);
 	}
 }

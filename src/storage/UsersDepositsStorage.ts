@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import SwapWBANToBan from "../models/operations/SwapWBANToBan";
+import SwapWPAWToPaw from "../models/operations/SwapWPAWToPaw";
 
 interface UsersDepositsStorage {
 	getUserAvailableBalance(from: string): Promise<BigNumber>;
@@ -9,56 +9,56 @@ interface UsersDepositsStorage {
 	isBalanceLocked(from: string): Promise<boolean>;
 	*/
 
-	hasPendingClaim(banAddress: string): Promise<boolean>;
+	hasPendingClaim(pawAddress: string): Promise<boolean>;
 	storePendingClaim(
-		banAddress: string,
+		pawAddress: string,
 		blockchainAddress: string
 	): Promise<boolean>;
-	isClaimed(banAddress: string): Promise<boolean>;
-	hasClaim(banAddress: string, blockchainAddress: string): Promise<boolean>;
-	confirmClaim(banAddress: string): Promise<boolean>;
+	isClaimed(pawAddress: string): Promise<boolean>;
+	hasClaim(pawAddress: string, blockchainAddress: string): Promise<boolean>;
+	confirmClaim(pawAddress: string): Promise<boolean>;
 
 	storeUserDeposit(
-		banAddress: string,
+		pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
 	): Promise<void>;
 	containsUserDepositTransaction(
-		banAddress: string,
+		pawAddress: string,
 		hash: string
 	): Promise<boolean>;
 	storeUserWithdrawal(
-		banAddress: string,
+		pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
 	): Promise<void>;
 	containsUserWithdrawalRequest(
-		banAddress: string,
+		pawAddress: string,
 		timestamp: number
 	): Promise<boolean>;
 
-	storeUserSwapToWBan(
-		banAddress: string,
+	storeUserSwapToWPaw(
+		pawAddress: string,
 		blockchainAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		receipt: string,
 		uuid: string
 	): Promise<void>;
-	storeUserSwapToBan(swap: SwapWBANToBan): Promise<void>;
-	swapToBanWasAlreadyDone(swap: SwapWBANToBan): Promise<boolean>;
+	storeUserSwapToPaw(swap: SwapWPAWToPaw): Promise<void>;
+	swapToPawWasAlreadyDone(swap: SwapWPAWToPaw): Promise<boolean>;
 
 	getLastBlockchainBlockProcessed(): Promise<number>;
 	setLastBlockchainBlockProcessed(block: number): Promise<void>;
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getDeposits(banAddress: string): Promise<Array<any>>;
+	getDeposits(pawAddress: string): Promise<Array<any>>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getWithdrawals(banAddress: string): Promise<Array<any>>;
+	getWithdrawals(pawAddress: string): Promise<Array<any>>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getSwaps(blockchainAddress: string, banAddress: string): Promise<Array<any>>;
+	getSwaps(blockchainAddress: string, pawAddress: string): Promise<Array<any>>;
 }
 
 export { UsersDepositsStorage };

@@ -3,7 +3,7 @@ import chaiAsPromised from "chai-as-promised";
 import * as sinon from "ts-sinon";
 import sinonChai from "sinon-chai";
 import { UsersDepositsService } from "../src/services/UsersDepositsService";
-import { Banano } from "../src/Banano";
+import { Paw } from "../src/Paw";
 import { BigNumber, ethers } from "ethers";
 import ProcessingQueue from "../src/services/queuing/ProcessingQueue";
 import config from "../src/config";
@@ -14,20 +14,20 @@ const { expect } = chai;
 chai.use(sinonChai);
 chai.use(chaiAsPromised);
 
-describe("Banano Service", () => {
-	let svc: sinon.StubbedInstance<Banano>;
+describe("Paw Service", () => {
+	let svc: sinon.StubbedInstance<Paw>;
 	let depositsService: sinon.StubbedInstance<UsersDepositsService>;
 	let processingQueue: sinon.StubbedInstance<ProcessingQueue>;
 	const seed = "012EZSFS";
 	const seedIdx = 0;
-	const representative = "ban_mycrazyrep";
-	const hotWallet = "ban_CAFEBABE";
-	const coldWallet = "ban_ILIKETHIS";
+	const representative = "paw_mycrazyrep";
+	const hotWallet = "paw_CAFEBABE";
+	const coldWallet = "paw_ILIKETHIS";
 
 	beforeEach(async () => {
 		depositsService = sinon.stubInterface<UsersDepositsService>();
 		processingQueue = sinon.stubInterface<ProcessingQueue>();
-		const banano = new Banano(
+		const paw = new Paw(
 			hotWallet,
 			coldWallet,
 			seed,
@@ -36,23 +36,23 @@ describe("Banano Service", () => {
 			depositsService,
 			processingQueue
 		);
-		svc = sinon.stubObject<Banano>(banano, [
+		svc = sinon.stubObject<Paw>(paw, [
 			"receiveTransaction",
-			"sendBan",
+			"sendPaw",
 			"getTotalBalance",
 		]);
 	});
 
 	describe("Users Deposits", () => {
-		it("Sends back deposited BAN from a wallet not claimed", async () => {
-			const sender = "ban_sender";
+		it("Sends back deposited PAW from a wallet not claimed", async () => {
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther("1");
 			const hash = "0xCAFEBABE";
 			depositsService.hasPendingClaim.withArgs(sender).resolves(false);
 			depositsService.isClaimed.withArgs(sender).resolves(false);
 
 			svc.receiveTransaction.resolves();
-			svc.sendBan.resolves("0xTHISROCKS");
+			svc.sendPaw.resolves("0xTHISROCKS");
 
 			// make a deposit
 			await svc.processUserDeposit(sender, amount, Date.now(), hash);
@@ -60,18 +60,18 @@ describe("Banano Service", () => {
 			// expect for it to be received
 			expect(svc.receiveTransaction).to.be.calledOnce;
 			// and sent back
-			expect(svc.sendBan).to.be.calledOnceWith(sender, amount);
+			expect(svc.sendPaw).to.be.calledOnceWith(sender, amount);
 		});
 
-		it("Sends back BAN deposits with more than two decimals", async () => {
-			const sender = "ban_sender";
+		it("Sends back PAW deposits with more than two decimals", async () => {
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther("1.466");
 			const hash = "0xCAFEBABE";
 			depositsService.hasPendingClaim.withArgs(sender).resolves(false);
 			depositsService.isClaimed.withArgs(sender).resolves(true);
 
 			svc.receiveTransaction.resolves();
-			svc.sendBan.resolves("0xTHISROCKS");
+			svc.sendPaw.resolves("0xTHISROCKS");
 
 			// make a deposit
 			await svc.processUserDeposit(sender, amount, Date.now(), hash);
@@ -79,13 +79,13 @@ describe("Banano Service", () => {
 			// expect for it to be received
 			expect(svc.receiveTransaction).to.be.calledOnce;
 			// and sent back
-			expect(svc.sendBan).to.be.calledOnceWith(sender, amount);
+			expect(svc.sendPaw).to.be.calledOnceWith(sender, amount);
 			// and have no deposit stored
 			expect(depositsService.storeUserDeposit).to.not.have.been.called;
 		});
 
 		it("Fails if there is a redlock error", async () => {
-			const sender = "ban_sender";
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther("1");
 			const hash = "0xCAFEBABE";
 			const timestamp = Date.now();
@@ -112,7 +112,7 @@ describe("Banano Service", () => {
 		});
 
 		it("Registers user deposit from a pending claimed wallet", async () => {
-			const sender = "ban_sender";
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther("1");
 			const hash = "0xCAFEBABE";
 			const timestamp = Date.now();
@@ -148,7 +148,7 @@ describe("Banano Service", () => {
 	describe("Users Deposits hot/cold wallets", () => {
 		let dataset = [
 			{
-				hot: config.BananoUsersDepositsHotWalletMinimum,
+				hot: config.PawUsersDepositsHotWalletMinimum,
 				deposit: "10",
 				expected: "8.0",
 			},
@@ -156,15 +156,15 @@ describe("Banano Service", () => {
 			{ hot: "0", deposit: "11", expected: "0.8" },
 			{ hot: "20", deposit: "10", expected: "8.0" },
 			{
-				hot: config.BananoUsersDepositsHotWalletMinimum,
+				hot: config.PawUsersDepositsHotWalletMinimum,
 				deposit: "4.12",
 				expected: "3.2",
 			},
 		];
 
 		dataset.forEach(({ hot, deposit, expected }) => {
-			it(`Send ${expected} BAN to cold wallet when hot wallet has ${hot} BAN and user made a deposit of ${deposit} BAN`, async () => {
-				const sender = "ban_sender";
+			it(`Send ${expected} PAW to cold wallet when hot wallet has ${hot} PAW and user made a deposit of ${deposit} PAW`, async () => {
+				const sender = "paw_sender";
 				const amount: BigNumber = ethers.utils.parseEther(deposit);
 				const timestamp = Date.now();
 				const hash = "0xCAFEBABE";
@@ -179,7 +179,7 @@ describe("Banano Service", () => {
 				svc.getTotalBalance
 					.withArgs(hotWallet)
 					.resolves(ethers.utils.parseEther(hot).add(amount));
-				svc.sendBan.resolves("0xTHISROCKS");
+				svc.sendPaw.resolves("0xTHISROCKS");
 
 				// make a deposit
 				await svc.processUserDeposit(sender, amount, timestamp, hash);
@@ -193,16 +193,16 @@ describe("Banano Service", () => {
 					timestamp,
 					hash
 				);
-				// and BAN to be sent to cold wallet
-				expect(svc.sendBan).to.be.calledOnceWith(
+				// and PAW to be sent to cold wallet
+				expect(svc.sendPaw).to.be.calledOnceWith(
 					coldWallet,
 					ethers.utils.parseEther(expected)
 				);
 			});
 		});
 
-		it("Don't send BAN to cold wallet if there is not enough BAN in hot wallet", async () => {
-			const sender = "ban_sender";
+		it("Don't send PAW to cold wallet if there is not enough PAW in hot wallet", async () => {
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther("4");
 			const timestamp = Date.now();
 			const hash = "0xCAFEBABE";
@@ -218,10 +218,10 @@ describe("Banano Service", () => {
 				.withArgs(hotWallet)
 				.resolves(
 					ethers.utils
-						.parseEther(config.BananoUsersDepositsHotWalletMinimum)
+						.parseEther(config.PawUsersDepositsHotWalletMinimum)
 						.sub(amount.add(ethers.utils.parseEther("1")))
 				);
-			// svc.sendBan.resolves("0xTHISROCKS");
+			// svc.sendPaw.resolves("0xTHISROCKS");
 
 			// make a deposit
 			await svc.processUserDeposit(sender, amount, timestamp, hash);
@@ -235,14 +235,14 @@ describe("Banano Service", () => {
 				timestamp,
 				hash
 			);
-			// and no BAN to be sent to cold wallet
-			expect(svc.sendBan).to.not.have.been.called;
+			// and no PAW to be sent to cold wallet
+			expect(svc.sendPaw).to.not.have.been.called;
 		});
 
-		it("Don't send BAN to cold wallet if there is 0 BAN to send", async () => {
-			const hot = config.BananoUsersDepositsHotWalletMinimum;
+		it("Don't send PAW to cold wallet if there is 0 PAW to send", async () => {
+			const hot = config.PawUsersDepositsHotWalletMinimum;
 			const deposit = "0.01";
-			const sender = "ban_sender";
+			const sender = "paw_sender";
 			const amount: BigNumber = ethers.utils.parseEther(deposit);
 			const timestamp = Date.now();
 			const hash = "0xCAFEBABE";
@@ -257,7 +257,7 @@ describe("Banano Service", () => {
 			svc.getTotalBalance
 				.withArgs(hotWallet)
 				.resolves(ethers.utils.parseEther(hot).add(amount));
-			svc.sendBan.resolves("0xTHISROCKS");
+			svc.sendPaw.resolves("0xTHISROCKS");
 
 			// make a deposit
 			await svc.processUserDeposit(sender, amount, timestamp, hash);
@@ -271,8 +271,8 @@ describe("Banano Service", () => {
 				timestamp,
 				hash
 			);
-			// and no BAN to be sent to cold wallet
-			expect(svc.sendBan).to.not.have.been.called;
+			// and no PAW to be sent to cold wallet
+			expect(svc.sendPaw).to.not.have.been.called;
 		});
 	});
 });

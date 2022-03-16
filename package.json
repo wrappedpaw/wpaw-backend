@@ -1,7 +1,7 @@
 {
-	"name": "wban-backend",
-	"version": "1.2.1",
-	"description": "wBAN backend for swaps",
+	"name": "wpaw-backend",
+	"version": "1.0.1",
+	"description": "wPAW backend for swaps",
 	"main": "dist/app.js",
 	"scripts": {
 		"start": "nodemon src/app.ts",
@@ -17,11 +17,12 @@
 		"@types/cors": "^2.8.12",
 		"@types/dotenv": "^8.2.0",
 		"@types/express": "^4.17.11",
+		"@types/ioredis": "4.27.1",
 		"@types/mocha": "^8.2.2",
 		"@types/node": "^14.14.20",
 		"@types/node-cron": "^2.0.3",
 		"@types/redlock": "^4.0.3",
-		"@types/websocket": "^1.0.2",
+		"@types/websocket": "1.0.2",
 		"@typescript-eslint/eslint-plugin": "^4.22.0",
 		"@typescript-eslint/parser": "^4.22.0",
 		"chai": "^4.3.4",
@@ -45,20 +46,20 @@
 		"typescript": "^4.2.4"
 	},
 	"dependencies": {
-		"@bananocoin/bananojs": "^2.4.7",
+		"@paw-digital/pawjs": "^1.0.1",
 		"async-mutex": "^0.3.1",
 		"axios": "^0.21.1",
 		"axios-cache-adapter": "^2.7.3",
 		"bullmq": "^1.24.0",
 		"cors": "^2.8.5",
 		"dotenv": "^8.2.0",
-		"ethers": "^5.0.26",
+		"ethers": "^5.0.32",
 		"express": "^4.17.1",
 		"ioredis": "^4.27.1",
 		"node-cron": "^3.0.0",
 		"redlock": "^4.2.0",
 		"tslog": "^3.2.0",
-		"wban-smart-contract": "0.6.0",
+		"wpaw-smart-contract": "0.6.0",
 		"websocket": "^1.0.34"
 	},
 	"husky": {
@@ -70,9 +71,9 @@
 		"*.{ts,js}": "eslint --cache --fix"
 	},
 	"nyc": {
-		"lines": 50.7,
-		"functions": 31.58,
+		"lines": 50.59,
+		"functions": 30.67,
 		"branches": 57.24,
-		"statements": 50.69
+		"statements": 50.58
 	}
 }

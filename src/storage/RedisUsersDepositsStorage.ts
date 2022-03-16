@@ -3,19 +3,19 @@ import IORedis from "ioredis";
 import Redlock from "redlock";
 import { BigNumber, ethers } from "ethers";
 import { UsersDepositsStorage } from "./UsersDepositsStorage";
-import SwapWBANToBan from "../models/operations/SwapWBANToBan";
+import SwapWPAWToPaw from "../models/operations/SwapWPAWToPaw";
 import config from "../config";
 
 /**
  * Redis storage explanations:
- * - `ban-balance`: map whose key is the BAN address and whose value is the BAN balance as a big number
- * - `deposits:${ban_address}`: sorted set (by timestamp) of all BAN deposits transactions hash
- * - `withdrawals:${ban_address}`: sorted set (by timestamp) of all BAN withdrawals TODO: date vs hash issue
- * - `swaps:ban-to-wban:${ban_address}`: sorted set (by timestamp) of all BAN -> wBAN receipts generated
- * - `swaps:wban-to-ban:${blockchain_address}`: sorted set (by timestamp) of all wBAN -> BAN transactions hash
+ * - `paw-balance`: map whose key is the PAW address and whose value is the PAW balance as a big number
+ * - `deposits:${paw_address}`: sorted set (by timestamp) of all PAW deposits transactions hash
+ * - `withdrawals:${paw_address}`: sorted set (by timestamp) of all PAW withdrawals TODO: date vs hash issue
+ * - `swaps:paw-to-wpaw:${paw_address}`: sorted set (by timestamp) of all PAW -> wPAW receipts generated
+ * - `swaps:wpaw-to-paw:${blockchain_address}`: sorted set (by timestamp) of all wPAW -> PAW transactions hash
  * - `audit:${hash|receipt}`: map of all the data associated to the event (deposit/withdrawal/swap)
- * - `claims:pending:${ban_address}:${blockchain_address}`: value of 1 means a pending claim -- expires after 5 minutes (TTL)
- * - `claims:${ban_address}:${blockchain_address}`: value of 1 means a valid claim
+ * - `claims:pending:${paw_address}:${blockchain_address}`: value of 1 means a pending claim -- expires after 5 minutes (TTL)
+ * - `claims:${paw_address}:${blockchain_address}`: value of 1 means a valid claim
  */
 class RedisUsersDepositsStorage implements UsersDepositsStorage {
 	private redis: IORedis.Redis;
@@ -46,10 +46,10 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 
 	async getUserAvailableBalance(from: string): Promise<BigNumber> {
 		return this.redlock
-			.lock(`locks:ban-balance:${from}`, 1_000)
+			.lock(`locks:paw-balance:${from}`, 1_000)
 			.then(async (lock) => {
 				const rawAmount: string | null = await this.redis.get(
-					`ban-balance:${from.toLowerCase()}`
+					`paw-balance:${from.toLowerCase()}`
 				);
 				if (rawAmount === null) {
 					return BigNumber.from(0);
@@ -62,37 +62,37 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 
 	/*
 	async lockBalance(from: string): Promise<void> {
-		this.redis.set(`locks:ban-balance:${from.toLowerCase()}`, "1");
+		this.redis.set(`locks:paw-balance:${from.toLowerCase()}`, "1");
 	}
 
 	async unlockBalance(from: string): Promise<void> {
-		this.redis.del(`locks:ban-balance:${from.toLowerCase()}`);
+		this.redis.del(`locks:paw-balance:${from.toLowerCase()}`);
 	}
 
 	async isBalanceLocked(from: string): Promise<boolean> {
 		return (
-			(await this.redis.exists(`locks:ban-balance:${from.toLowerCase()}`)) === 1
+			(await this.redis.exists(`locks:paw-balance:${from.toLowerCase()}`)) === 1
 		);
 	}
 	*/
 
-	async hasPendingClaim(banAddress: string): Promise<boolean> {
+	async hasPendingClaim(pawAddress: string): Promise<boolean> {
 		const pendingClaims = await this.redis.keys(
-			`claims:pending:${banAddress.toLowerCase()}:*`
+			`claims:pending:${pawAddress.toLowerCase()}:*`
 		);
 		const exists = pendingClaims.length > 0;
 		this.log.debug(
-			`Checked if there is already a pending claim for ${banAddress.toLowerCase()}: ${exists}`
+			`Checked if there is already a pending claim for ${pawAddress.toLowerCase()}: ${exists}`
 		);
 		return exists;
 	}
 
 	async storePendingClaim(
-		banAddress: string,
+		pawAddress: string,
 		blockchainAddress: string
 	): Promise<boolean> {
 		try {
-			const key = `claims:pending:${banAddress.toLowerCase()}:${blockchainAddress.toLowerCase()}`;
+			const key = `claims:pending:${pawAddress.toLowerCase()}:${blockchainAddress.toLowerCase()}`;
 			await this.redis
 				.multi()
 				.set(key, "1")
@@ -100,7 +100,7 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 				.exec();
 			this.log.info(
 				`Stored pending claim for ${
-					banAddress.toLowerCase
+					pawAddress.toLowerCase
 				} and ${blockchainAddress.toLowerCase()}`
 			);
 			return true;
@@ -110,57 +110,57 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 		}
 	}
 
-	async isClaimed(banAddress: string): Promise<boolean> {
+	async isClaimed(pawAddress: string): Promise<boolean> {
 		const claims = await this.redis.keys(
-			`claims:${banAddress.toLowerCase()}:*`
+			`claims:${pawAddress.toLowerCase()}:*`
 		);
 		const exists = claims.length > 0;
 		this.log.trace(
-			`Checked if there is a claim for ${banAddress.toLowerCase()}: ${exists}`
+			`Checked if there is a claim for ${pawAddress.toLowerCase()}: ${exists}`
 		);
 		return exists;
 	}
 
 	async hasClaim(
-		banAddress: string,
+		pawAddress: string,
 		blockchainAddress: string
 	): Promise<boolean> {
-		const claims = await this.redis.keys(
-			`claims:${banAddress.toLowerCase()}:${blockchainAddress.toLowerCase()}`
+		const pendingClaims = await this.redis.keys(
+			`claims:${pawAddress.toLowerCase()}:${blockchainAddress.toLowerCase()}`
 		);
-		const exists = claims.length > 0;
+		const exists = pendingClaims.length > 0;
 		this.log.trace(
-			`Checked if there is a claim for ${banAddress.toLowerCase()}: ${exists}`
+			`Checked if there is a claim for ${pawAddress.toLowerCase()}: ${exists}`
 		);
 		return exists;
 	}
 
-	async confirmClaim(banAddress: string): Promise<boolean> {
+	async confirmClaim(pawAddress: string): Promise<boolean> {
 		const pendingClaims = await this.redis.keys(
-			`claims:pending:${banAddress.toLowerCase()}:*`
+			`claims:pending:${pawAddress.toLowerCase()}:*`
 		);
 		const key = pendingClaims[0].replace(":pending", "");
 		await this.redis.set(key, 1);
-		this.log.info(`Stored claim for ${banAddress} with ${key}`);
+		this.log.info(`Stored claim for ${pawAddress} with ${key}`);
 		return true;
 	}
 
 	async storeUserDeposit(
-		_banAddress: string,
+		_pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
 	): Promise<void> {
-		const banAddress = _banAddress.toLowerCase();
+		const pawAddress = _pawAddress.toLowerCase();
 		this.log.info(
-			`Storing user deposit from: ${banAddress}, amount: ${amount} BAN, hash: ${hash}`
+			`Storing user deposit from: ${pawAddress}, amount: ${amount} PAW, hash: ${hash}`
 		);
 		this.redlock
-			.lock(`locks:ban-balance:${banAddress}`, 30_000)
+			.lock(`locks:paw-balance:${pawAddress}`, 30_000)
 			.then(async (lock) => {
 				let rawBalance: string | null;
 				try {
-					rawBalance = await this.redis.get(`ban-balance:${banAddress}`);
+					rawBalance = await this.redis.get(`paw-balance:${pawAddress}`);
 					let balance: BigNumber;
 					if (rawBalance) {
 						balance = BigNumber.from(rawBalance);
@@ -171,14 +171,14 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 
 					await this.redis
 						.multi()
-						.set(`ban-balance:${banAddress}`, balance.toString())
-						.zadd(`deposits:${banAddress}`, timestamp, hash)
+						.set(`paw-balance:${pawAddress}`, balance.toString())
+						.zadd(`deposits:${pawAddress}`, timestamp, hash)
 						.hset(`audit:${hash}`, { type: "deposit", hash, amount, timestamp })
 						.exec();
 					this.log.info(
-						`Stored user deposit from: ${banAddress}, amount: ${ethers.utils.formatEther(
+						`Stored user deposit from: ${pawAddress}, amount: ${ethers.utils.formatEther(
 							amount
-						)} BAN, hash: ${hash}`
+						)} PAW, hash: ${hash}`
 					);
 				} catch (err) {
 					this.log.error(err);
@@ -189,46 +189,46 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 			})
 			.catch((err) => {
 				this.log.error(
-					`Couldn't store user deposit from: ${banAddress}, amount: ${ethers.utils.formatEther(
+					`Couldn't store user deposit from: ${pawAddress}, amount: ${ethers.utils.formatEther(
 						amount
-					)} BAN, hash: ${hash}`
+					)} PAW, hash: ${hash}`
 				);
 				throw err;
 			});
 	}
 
 	async containsUserDepositTransaction(
-		banAddress: string,
+		pawAddress: string,
 		hash: string
 	): Promise<boolean> {
 		this.log.info(
-			`Checking if user deposit transaction from ${banAddress.toLowerCase()} with hash ${hash} was already processed...`
+			`Checking if user deposit transaction from ${pawAddress.toLowerCase()} with hash ${hash} was already processed...`
 		);
 		const isAlreadyStored: number | null = await this.redis.zrank(
-			`deposits:${banAddress.toLowerCase()}`,
+			`deposits:${pawAddress.toLowerCase()}`,
 			hash
 		);
 		return isAlreadyStored != null;
 	}
 
 	async storeUserWithdrawal(
-		_banAddress: string,
+		_pawAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		hash: string
 	): Promise<void> {
-		const banAddress = _banAddress.toLowerCase();
+		const pawAddress = _pawAddress.toLowerCase();
 		this.log.info(
-			`Storing user withdrawal to: ${banAddress}, amount: ${ethers.utils.formatEther(
+			`Storing user withdrawal to: ${pawAddress}, amount: ${ethers.utils.formatEther(
 				amount
-			)} BAN, hash: ${hash}`
+			)} PAW, hash: ${hash}`
 		);
 		this.redlock
-			.lock(`locks:ban-balance:${banAddress}`, 1_000)
+			.lock(`locks:paw-balance:${pawAddress}`, 1_000)
 			.then(async (lock) => {
 				let rawBalance: string | null;
 				try {
-					rawBalance = await this.redis.get(`ban-balance:${banAddress}`);
+					rawBalance = await this.redis.get(`paw-balance:${pawAddress}`);
 					let balance: BigNumber;
 					if (rawBalance) {
 						balance = BigNumber.from(rawBalance);
@@ -239,8 +239,8 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 
 					await this.redis
 						.multi()
-						.set(`ban-balance:${banAddress}`, balance.toString())
-						.zadd(`withdrawals:${banAddress}`, timestamp, hash)
+						.set(`paw-balance:${pawAddress}`, balance.toString())
+						.zadd(`withdrawals:${pawAddress}`, timestamp, hash)
 						.hset(`audit:${hash}`, {
 							type: "withdrawal",
 							hash,
@@ -249,9 +249,9 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 						})
 						.exec();
 					this.log.info(
-						`Stored user withdrawal from: ${banAddress}, amount: ${ethers.utils.formatEther(
+						`Stored user withdrawal from: ${pawAddress}, amount: ${ethers.utils.formatEther(
 							amount
-						)} BAN`
+						)} PAW`
 					);
 				} catch (err) {
 					this.log.error(err);
@@ -265,50 +265,50 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 	}
 
 	async containsUserWithdrawalRequest(
-		banAddress: string,
+		pawAddress: string,
 		timestamp: number
 	): Promise<boolean> {
 		this.log.info(
-			`Checking if user withdrawal request from ${banAddress.toLowerCase()} at ${timestamp} was already processed...`
+			`Checking if user withdrawal request from ${pawAddress.toLowerCase()} at ${timestamp} was already processed...`
 		);
 		const isAlreadyStored = await this.redis.zcount(
-			`withdrawals:${banAddress.toLowerCase()}`,
+			`withdrawals:${pawAddress.toLowerCase()}`,
 			timestamp,
 			timestamp
 		);
 		return isAlreadyStored === 1;
 	}
 
-	async storeUserSwapToWBan(
-		_banAddress: string,
+	async storeUserSwapToWPaw(
+		_pawAddress: string,
 		_blockchainAddress: string,
 		amount: BigNumber,
 		timestamp: number,
 		receipt: string,
 		uuid: string
 	): Promise<void> {
-		if (!_banAddress) {
-			throw new Error("Missing BAN address");
+		if (!_pawAddress) {
+			throw new Error("Missing PAW address");
 		}
-		const banAddress = _banAddress.toLowerCase();
+		const pawAddress = _pawAddress.toLowerCase();
 		this.log.info(
 			`Storing swap of ${ethers.utils.formatEther(
 				amount
-			)} BAN for user ${banAddress}`
+			)} PAW for user ${pawAddress}`
 		);
 		await this.redlock
-			.lock(`locks:swaps:ban-to-wban:${banAddress}`, 1_000)
+			.lock(`locks:swaps:paw-to-wpaw:${pawAddress}`, 1_000)
 			.then(async (lock: Redlock.Lock) => {
 				try {
-					const balance = (await this.getUserAvailableBalance(banAddress)).sub(
+					const balance = (await this.getUserAvailableBalance(pawAddress)).sub(
 						amount
 					);
 					await this.redis
 						.multi()
-						.set(`ban-balance:${banAddress}`, balance.toString())
-						.zadd(`swaps:ban-to-wban:${banAddress}`, timestamp, receipt)
+						.set(`paw-balance:${pawAddress}`, balance.toString())
+						.zadd(`swaps:paw-to-wpaw:${pawAddress}`, timestamp, receipt)
 						.hset(`audit:${receipt}`, {
-							type: "swap-to-wban",
+							type: "swap-to-wpaw",
 							blockchainAddress: _blockchainAddress.toLowerCase(),
 							receipt,
 							uuid,
@@ -317,9 +317,9 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 						})
 						.exec();
 					this.log.info(
-						`Stored user swap from: ${banAddress}, amount: ${ethers.utils.formatEther(
+						`Stored user swap from: ${pawAddress}, amount: ${ethers.utils.formatEther(
 							amount
-						)} BAN, receipt: ${receipt}`
+						)} PAW, receipt: ${receipt}`
 					);
 				} catch (err) {
 					this.log.error(err);
@@ -333,15 +333,15 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 			});
 	}
 
-	async storeUserSwapToBan(swap: SwapWBANToBan): Promise<void> {
-		if (!swap.banWallet) {
-			throw new Error("Missing BAN address");
+	async storeUserSwapToPaw(swap: SwapWPAWToPaw): Promise<void> {
+		if (!swap.pawWallet) {
+			throw new Error("Missing PAW address");
 		}
 		this.redlock
-			.lock(`locks:ban-balance:${swap.banWallet}`, 1_000)
+			.lock(`locks:paw-balance:${swap.pawWallet}`, 1_000)
 			.then(async (lock) => {
 				// check "again" if the txn wasn't already processed
-				if (await this.swapToBanWasAlreadyDone(swap)) {
+				if (await this.swapToPawWasAlreadyDone(swap)) {
 					this.log.warn(
 						`Swap for transaction "${swap.hash}" was already done.`
 					);
@@ -349,7 +349,7 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 					let rawBalance: string | null;
 					try {
 						rawBalance = await this.redis.get(
-							`ban-balance:${swap.banWallet.toLowerCase()}`
+							`paw-balance:${swap.pawWallet.toLowerCase()}`
 						);
 						let balance: BigNumber;
 						if (rawBalance) {
@@ -362,26 +362,26 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 						await this.redis
 							.multi()
 							.set(
-								`ban-balance:${swap.banWallet.toLowerCase()}`,
+								`paw-balance:${swap.pawWallet.toLowerCase()}`,
 								balance.toString()
 							)
 							.zadd(
-								`swaps:wban-to-ban:${swap.blockchainWallet.toLowerCase()}`,
+								`swaps:wpaw-to-paw:${swap.blockchainWallet.toLowerCase()}`,
 								swap.timestamp * 1_000,
 								swap.hash
 							)
 							.hset(`audit:${swap.hash}`, {
-								type: "swap-to-ban",
+								type: "swap-to-paw",
 								hash: swap.hash,
-								banAddress: swap.banWallet.toLowerCase(),
+								pawAddress: swap.pawWallet.toLowerCase(),
 								amount: ethers.utils.parseEther(swap.amount).toString(),
 								timestamp: swap.timestamp * 1_000,
 							})
 							.exec();
 						this.log.info(
-							`Stored user swap from wBAN of ${
+							`Stored user swap from wPAW of ${
 								swap.amount
-							} BAN from ${swap.blockchainWallet.toLowerCase()} to ${swap.banWallet.toLowerCase()} with hash: ${
+							} PAW from ${swap.blockchainWallet.toLowerCase()} to ${swap.pawWallet.toLowerCase()} with hash: ${
 								swap.hash
 							}`
 						);
@@ -399,14 +399,14 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 			});
 	}
 
-	async swapToBanWasAlreadyDone(swap: SwapWBANToBan): Promise<boolean> {
+	async swapToPawWasAlreadyDone(swap: SwapWPAWToPaw): Promise<boolean> {
 		this.log.info(
 			`Checking if swap from ${swap.blockchainWallet.toLowerCase()} with hash ${
 				swap.hash
 			} was already processed...`
 		);
 		const isAlreadyProcessed: number | null = await this.redis.zrank(
-			`swaps:wban-to-ban:${swap.blockchainWallet.toLowerCase()}`,
+			`swaps:wpaw-to-paw:${swap.blockchainWallet.toLowerCase()}`,
 			swap.hash
 		);
 		return isAlreadyProcessed != null;
@@ -428,9 +428,9 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async getDeposits(banAddress: string): Promise<Array<any>> {
+	async getDeposits(pawAddress: string): Promise<Array<any>> {
 		const hashes: string[] = await this.redis.zrevrangebyscore(
-			`deposits:${banAddress.toLowerCase()}`,
+			`deposits:${pawAddress.toLowerCase()}`,
 			"+inf",
 			"-inf",
 			"LIMIT",
@@ -440,16 +440,16 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 		return Promise.all(
 			hashes.map(async (hash) => {
 				const results = await this.redis.hgetall(`audit:${hash}`);
-				results.link = `https://creeper.banano.cc/explorer/block/${hash}`;
+				results.link = `https://tracker.paw.digital/block/${hash}`;
 				return results;
 			})
 		);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	async getWithdrawals(banAddress: string): Promise<Array<any>> {
+	async getWithdrawals(pawAddress: string): Promise<Array<any>> {
 		const hashes: string[] = await this.redis.zrevrangebyscore(
-			`withdrawals:${banAddress.toLowerCase()}`,
+			`withdrawals:${pawAddress.toLowerCase()}`,
 			"+inf",
 			"-inf",
 			"LIMIT",
@@ -459,7 +459,7 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 		return Promise.all(
 			hashes.map(async (hash) => {
 				const results = await this.redis.hgetall(`audit:${hash}`);
-				results.link = `https://creeper.banano.cc/explorer/block/${hash}`;
+				results.link = `https://tracker.paw.digital/block/${hash}`;
 				return results;
 			})
 		);
@@ -468,18 +468,18 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async getSwaps(
 		blockchainAddress: string,
-		banAddress: string
+		pawAddress: string
 	): Promise<Array<any>> {
-		const banToWBAN: string[] = await this.redis.zrevrangebyscore(
-			`swaps:ban-to-wban:${banAddress.toLowerCase()}`,
+		const pawToWPAW: string[] = await this.redis.zrevrangebyscore(
+			`swaps:paw-to-wpaw:${pawAddress.toLowerCase()}`,
 			"+inf",
 			"-inf",
 			"LIMIT",
 			0,
 			RedisUsersDepositsStorage.LIMIT
 		);
-		const wbanToBAN: string[] = await this.redis.zrevrangebyscore(
-			`swaps:wban-to-ban:${blockchainAddress.toLowerCase()}`,
+		const wpawToPAW: string[] = await this.redis.zrevrangebyscore(
+			`swaps:wpaw-to-paw:${blockchainAddress.toLowerCase()}`,
 			"+inf",
 			"-inf",
 			"LIMIT",
@@ -487,9 +487,9 @@ class RedisUsersDepositsStorage implements UsersDepositsStorage {
 			RedisUsersDepositsStorage.LIMIT
 		);
 		return Promise.all(
-			banToWBAN.concat(wbanToBAN).map(async (hash) => {
+			pawToWPAW.concat(wpawToPAW).map(async (hash) => {
 				const results = await this.redis.hgetall(`audit:${hash}`);
-				if (results.type === "swap-to-ban") {
+				if (results.type === "swap-to-paw") {
 					results.link = `${config.BlockchainBlockExplorerUrl}/tx/${hash}`;
 				}
 				return results;

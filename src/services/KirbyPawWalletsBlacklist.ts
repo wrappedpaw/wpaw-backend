@@ -3,11 +3,11 @@ import { setup } from "axios-cache-adapter";
 import { Logger } from "tslog";
 import config from "../config";
 import {
-	BananoWalletsBlacklist,
+	PawWalletsBlacklist,
 	BlacklistRecord,
-} from "./BananoWalletsBlacklist";
+} from "./PawWalletsBlacklist";
 
-class KirbyBananoWalletsBlacklist implements BananoWalletsBlacklist {
+class KirbyPawWalletsBlacklist implements PawWalletsBlacklist {
 	private api: AxiosInstance;
 
 	private log: Logger = config.Logger.getChildLogger();
@@ -27,14 +27,14 @@ class KirbyBananoWalletsBlacklist implements BananoWalletsBlacklist {
 		return resp.data as Array<BlacklistRecord>;
 	}
 
-	async isBlacklisted(banWallet: string): Promise<BlacklistRecord | undefined> {
+	async isBlacklisted(pawWallet: string): Promise<BlacklistRecord | undefined> {
 		const blacklist = await this.getBlacklistedWallets();
-		const result = blacklist.find((record) => record.address === banWallet);
+		const result = blacklist.find((record) => record.address === pawWallet);
 		this.log.debug(
-			`Blacklist check for "${banWallet}": ${JSON.stringify(result)}`
+			`Blacklist check for "${pawWallet}": ${JSON.stringify(result)}`
 		);
 		return result;
 	}
 }
 
-export default KirbyBananoWalletsBlacklist;
+export default KirbyPawWalletsBlacklist;

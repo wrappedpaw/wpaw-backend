@@ -1,5 +1,5 @@
 type ClaimRequest = {
-	banAddress: string;
+	pawAddress: string;
 	blockchainAddress: string;
 	sig: string;
 };

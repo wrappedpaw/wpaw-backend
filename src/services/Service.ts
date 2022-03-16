@@ -1,7 +1,7 @@
 import { Logger } from "tslog";
 import { BigNumber, ethers } from "ethers";
 import { Processor } from "bullmq";
-import { Banano } from "../Banano";
+import { Paw } from "../Paw";
 import config from "../config";
 import { UsersDepositsService } from "./UsersDepositsService";
 import InvalidSignatureError from "../errors/InvalidSignatureError";
@@ -11,15 +11,15 @@ import { ClaimResponse } from "../models/responses/ClaimResponse";
 import { Blockchain } from "../Blockchain";
 import ProcessingQueue from "./queuing/ProcessingQueue";
 import { OperationsNames } from "../models/operations/Operation";
-import BananoUserWithdrawal from "../models/operations/BananoUserWithdrawal";
-import SwapBanToWBAN from "../models/operations/SwapBanToWBAN";
-import SwapWBANToBan from "../models/operations/SwapWBANToBan";
+import PawUserWithdrawal from "../models/operations/PawUserWithdrawal";
+import SwapPawToWPAW from "../models/operations/SwapPawToWPAW";
+import SwapWPAWToPaw from "../models/operations/SwapWPAWToPaw";
 import History from "../models/responses/History";
 import BlockchainScanQueue from "./queuing/BlockchainScanQueue";
-import { BananoWalletsBlacklist } from "./BananoWalletsBlacklist";
+import { PawWalletsBlacklist } from "./PawWalletsBlacklist";
 
 class Service {
-	banano: Banano;
+	paw: Paw;
 
 	public blockchain: Blockchain;
 
@@ -29,7 +29,7 @@ class Service {
 
 	private blockchainScanQueue: BlockchainScanQueue;
 
-	private bananoWalletsBlacklist: BananoWalletsBlacklist;
+	private pawWalletsBlacklist: PawWalletsBlacklist;
 
 	private log: Logger = config.Logger.getChildLogger();
 
@@ -37,36 +37,36 @@ class Service {
 		usersDepositsService: UsersDepositsService,
 		processingQueue: ProcessingQueue,
 		blockchainScanQueue: BlockchainScanQueue,
-		bananoWalletsBlacklist: BananoWalletsBlacklist
+		pawWalletsBlacklist: PawWalletsBlacklist
 	) {
 		this.processingQueue = processingQueue;
 		this.blockchainScanQueue = blockchainScanQueue;
-		this.banano = new Banano(
-			config.BananoUsersDepositsHotWallet,
-			config.BananoUsersDepositsColdWallet,
-			config.BananoSeed,
-			config.BananoSeedIdx,
-			config.BananoRepresentative,
+		this.paw = new Paw(
+			config.PawUsersDepositsHotWallet,
+			config.PawUsersDepositsColdWallet,
+			config.PawSeed,
+			config.PawSeedIdx,
+			config.PawRepresentative,
 			usersDepositsService,
 			this.processingQueue
 		);
 		this.processingQueue.registerProcessor(
-			OperationsNames.BananoWithdrawal,
+			OperationsNames.PawWithdrawal,
 			async (job) => {
-				const withdrawal: BananoUserWithdrawal = job.data;
+				const withdrawal: PawUserWithdrawal = job.data;
 				const processor = this.withdrawalProcessor(withdrawal.signature);
 				return processor(job);
 			}
 		);
 		this.processingQueue.registerProcessor(
-			OperationsNames.SwapToWBAN,
+			OperationsNames.SwapToWPAW,
 			async (job) => {
-				const swap: SwapBanToWBAN = job.data;
-				const { receipt, uuid, wbanBalance } = await this.processSwapToWBAN(
+				const swap: SwapPawToWPAW = job.data;
+				const { receipt, uuid, wpawBalance } = await this.processSwapToWPAW(
 					swap
 				);
 				return {
-					banWallet: swap.from,
+					pawWallet: swap.from,
 					blockchainWallet: swap.blockchainWallet,
 					swapped: swap.amount,
 					receipt,
@@ -74,24 +74,24 @@ class Service {
 					balance: ethers.utils.formatEther(
 						await this.usersDepositsService.getUserAvailableBalance(swap.from)
 					),
-					wbanBalance: ethers.utils.formatEther(wbanBalance),
+					wpawBalance: ethers.utils.formatEther(wpawBalance),
 				};
 			}
 		);
 		this.processingQueue.registerProcessor(
-			OperationsNames.SwapToBAN,
+			OperationsNames.SwapToPAW,
 			async (job) => {
-				const swap: SwapWBANToBan = job.data;
-				const { hash, wbanBalance } = await this.processSwapToBAN(swap);
+				const swap: SwapWPAWToPaw = job.data;
+				const { hash, wpawBalance } = await this.processSwapToPAW(swap);
 				return {
-					banWallet: swap.banWallet,
+					pawWallet: swap.pawWallet,
 					swapped: swap.amount,
 					balance: ethers.utils.formatEther(
 						await this.usersDepositsService.getUserAvailableBalance(
-							swap.banWallet
+							swap.pawWallet
 						)
 					),
-					wbanBalance,
+					wpawBalance,
 					transaction: hash,
 					transactionLink: `${config.BlockchainBlockExplorerUrl}/tx/${hash}`,
 				};
@@ -101,31 +101,23 @@ class Service {
 			usersDepositsService,
 			this.blockchainScanQueue
 		);
-		this.blockchain.onSwapToBAN((swap: SwapWBANToBan) => this.swapToBAN(swap));
+		this.blockchain.onSwapToPAW((swap: SwapWPAWToPaw) => this.swapToPAW(swap));
 		this.usersDepositsService = usersDepositsService;
-		this.bananoWalletsBlacklist = bananoWalletsBlacklist;
+		this.pawWalletsBlacklist = pawWalletsBlacklist;
 	}
 
 	start(): void {
 		this.processingQueue.start();
 		this.blockchainScanQueue.start();
-		this.banano.subscribeToBananoNotificationsForWallet();
+		this.paw.subscribeToPawNotificationsForWallet();
 	}
 
 	async getUserAvailableBalance(from: string): Promise<BigNumber> {
 		return this.usersDepositsService.getUserAvailableBalance(from);
 	}
 
-	// check if the user already claimed his addresses
-	async claimAvailable(
-		banWallet: string,
-		blockchainWallet: string
-	): Promise<boolean> {
-		return this.usersDepositsService.hasClaim(banWallet, blockchainWallet);
-	}
-
 	async claim(
-		banWallet: string,
+		pawWallet: string,
 		blockchainWallet: string,
 		signature: string
 	): Promise<ClaimResponse> {
@@ -134,53 +126,47 @@ class Service {
 			!this.checkSignature(
 				blockchainWallet,
 				signature,
-				`I hereby claim that the BAN address "${banWallet}" is mine`
+				`I hereby claim that the PAW address "${pawWallet}" is mine`
 			)
 		) {
 			return ClaimResponse.InvalidSignature;
 		}
 		// check if the address is blacklisted
-		const blacklisted = await this.bananoWalletsBlacklist.isBlacklisted(
-			banWallet
+		const blacklisted = await this.pawWalletsBlacklist.isBlacklisted(
+			pawWallet
 		);
 		if (blacklisted !== undefined) {
 			this.log.warn(
-				`Can't claim "${banWallet}. This is a blacklisted wallet linked to ${blacklisted.alias}`
+				`Can't claim "${pawWallet}. This is a blacklisted wallet linked to ${blacklisted.alias}`
 			);
 			return ClaimResponse.Blacklisted;
 		}
 		// check if the user already did the claim process
-		if (await this.usersDepositsService.isClaimed(banWallet)) {
-			const claimedFromOriginalOwner = await this.usersDepositsService.hasClaim(
-				banWallet,
-				blockchainWallet
-			);
-			return claimedFromOriginalOwner
-				? ClaimResponse.AlreadyDone
-				: ClaimResponse.InvalidOwner;
+		if (await this.usersDepositsService.hasClaim(pawWallet, blockchainWallet)) {
+			return ClaimResponse.AlreadyDone;
 		}
 		// check if there is a pending claim
-		if (!(await this.usersDepositsService.hasPendingClaim(banWallet))) {
+		if (!(await this.usersDepositsService.hasPendingClaim(pawWallet))) {
 			return (await this.usersDepositsService.storePendingClaim(
-				banWallet,
+				pawWallet,
 				blockchainWallet
 			))
 				? ClaimResponse.Ok
 				: ClaimResponse.Error;
 		}
-		// assume this is another user who tried to do this
+		// assume this is another use who tried to do this
 		return ClaimResponse.InvalidOwner;
 	}
 
-	async withdrawBAN(
-		banWallet: string,
+	async withdrawPAW(
+		pawWallet: string,
 		amount: string,
 		blockchainWallet: string,
 		timestamp: number,
 		signature: string
 	): Promise<string> {
-		return this.processingQueue.addBananoUserWithdrawal({
-			banWallet,
+		return this.processingQueue.addPawUserWithdrawal({
+			pawWallet,
 			amount,
 			blockchainWallet,
 			signature,
@@ -189,14 +175,14 @@ class Service {
 		});
 	}
 
-	async processWithdrawBAN(
-		withdrawal: BananoUserWithdrawal,
+	async processWithdrawPAW(
+		withdrawal: PawUserWithdrawal,
 		signature?: string
 	): Promise<string> {
-		const { banWallet, amount, blockchainWallet, timestamp } = withdrawal;
+		const { pawWallet, amount, blockchainWallet, timestamp } = withdrawal;
 
 		this.log.info(
-			`Processing user withdrawal request of "${amount}" BAN from wallet "${banWallet}"`
+			`Processing user withdrawal request of "${amount}" PAW from wallet "${pawWallet}"`
 		);
 
 		// check if request was already processed
@@ -204,10 +190,10 @@ class Service {
 			await this.usersDepositsService.containsUserWithdrawalRequest(withdrawal)
 		) {
 			this.log.warn(
-				`User withdrawal request to "${banWallet}" at ${timestamp} was already processed`
+				`User withdrawal request to "${pawWallet}" at ${timestamp} was already processed`
 			);
 			throw new Error(
-				"Can't withdraw BAN as the transaction was already processed"
+				"Can't withdraw PAW as the transaction was already processed"
 			);
 		}
 
@@ -217,17 +203,17 @@ class Service {
 			!this.checkSignature(
 				blockchainWallet,
 				signature,
-				`Withdraw ${amount} BAN to my wallet "${banWallet}"`
+				`Withdraw ${amount} PAW to my wallet "${pawWallet}"`
 			)
 		) {
 			throw new InvalidSignatureError();
 		}
 
 		// verify is the claim was previously done
-		if (!(await this.usersDepositsService.isClaimed(banWallet))) {
-			throw new Error(`Can't withdraw from unclaimed wallet ${banWallet}`);
+		if (!this.usersDepositsService.isClaimed(pawWallet)) {
+			throw new Error(`Can't withdraw from unclaimed wallet ${pawWallet}`);
 		} else if (
-			!(await this.usersDepositsService.hasClaim(banWallet, blockchainWallet))
+			!this.usersDepositsService.hasClaim(pawWallet, blockchainWallet)
 		) {
 			throw new Error("Can't withdraw from another Blockchain wallet");
 		}
@@ -236,23 +222,23 @@ class Service {
 
 		// check for positive amounts
 		if (withdrawnAmount.isNegative()) {
-			throw new Error("Can't withdraw negative amounts of BAN");
+			throw new Error("Can't withdraw negative amounts of PAW");
 		}
 
 		// check if deposits are greater than or equal to amount to withdraw
 		const availableBalance: BigNumber = await this.usersDepositsService.getUserAvailableBalance(
-			banWallet
+			pawWallet
 		);
 		if (!availableBalance.gte(withdrawnAmount)) {
-			const message = `User "${banWallet}" has not deposited enough BAN for a withdrawal of ${amount} BAN. Deposited balance is: ${ethers.utils.formatEther(
+			const message = `User "${pawWallet}" has not deposited enough PAW for a withdrawal of ${amount} PAW. Deposited balance is: ${ethers.utils.formatEther(
 				availableBalance
-			)} BAN`;
+			)} PAW`;
 			this.log.warn(message);
 			throw new InsufficientBalanceError(message);
 		}
 
-		// send the BAN to the user
-		const { pending, hash } = await this.eventuallySendBan(withdrawal);
+		// send the PAW to the user
+		const { pending, hash } = await this.eventuallySendPaw(withdrawal);
 
 		if (pending || !hash) {
 			return "";
@@ -260,23 +246,23 @@ class Service {
 
 		// decrease user deposits
 		await this.usersDepositsService.storeUserWithdrawal(
-			banWallet,
+			pawWallet,
 			withdrawnAmount,
 			timestamp,
 			hash
 		);
-		this.log.info(`Withdrew ${amount} BAN to "${banWallet} with txn ${hash}"`);
+		this.log.info(`Withdrew ${amount} PAW to "${pawWallet} with txn ${hash}"`);
 		return hash;
 	}
 
-	async swapToWBAN(
+	async swapToWPAW(
 		from: string,
 		amount: number,
 		blockchainWallet: string,
 		timestamp: number,
 		signature: string
 	): Promise<string> {
-		return this.processingQueue.addSwapToWBan({
+		return this.processingQueue.addSwapToWPaw({
 			from,
 			amount,
 			blockchainWallet,
@@ -285,7 +271,7 @@ class Service {
 		});
 	}
 
-	async processSwapToWBAN(swap: SwapBanToWBAN): Promise<any> {
+	async processSwapToWPAW(swap: SwapPawToWPAW): Promise<any> {
 		const { from, blockchainWallet, signature } = swap;
 		const amountStr = swap.amount;
 		// verify signature
@@ -293,7 +279,7 @@ class Service {
 			!this.checkSignature(
 				blockchainWallet,
 				signature,
-				`Swap ${amountStr} BAN for wBAN with BAN I deposited from my wallet "${from}"`
+				`Swap ${amountStr} PAW for wPAW with PAW I deposited from my wallet "${from}"`
 			)
 		) {
 			throw new InvalidSignatureError();
@@ -307,7 +293,7 @@ class Service {
 
 		// check for positive amounts
 		if (amount.isNegative()) {
-			throw new Error("Can't swap negative amounts of BAN");
+			throw new Error("Can't swap negative amounts of PAW");
 		}
 
 		// check if deposits are greater than or equal to amount to swap
@@ -315,22 +301,22 @@ class Service {
 			from
 		);
 		if (!availableBalance.gte(amount)) {
-			const message = `User "${from}" has not deposited enough BAN for a swap of ${amountStr} BAN. Deposited balance is: ${ethers.utils.formatEther(
+			const message = `User "${from}" has not deposited enough PAW for a swap of ${amountStr} PAW. Deposited balance is: ${ethers.utils.formatEther(
 				availableBalance
-			)} BAN`;
+			)} PAW`;
 			this.log.warn(message);
 			throw new InsufficientBalanceError(message);
 		}
 
-		// create wBAN swap receipt
+		// create wPAW swap receipt
 		const {
 			receipt,
 			uuid,
-			wbanBalance,
+			wpawBalance,
 		} = await this.blockchain.createMintReceipt(blockchainWallet, amount);
 		// decrease user deposits
 		// TODO: store signature?
-		await this.usersDepositsService.storeUserSwapToWBan(
+		await this.usersDepositsService.storeUserSwapToWPaw(
 			from,
 			blockchainWallet,
 			amount,
@@ -338,45 +324,50 @@ class Service {
 			receipt,
 			uuid
 		);
-		return { receipt, uuid, wbanBalance };
+		console.log('from:' + from);
+		console.log('blockchainWallet:' + blockchainWallet);
+		console.log('amount:' + amount);
+		console.log('receipt:' + receipt);
+		console.log('uuid:' + uuid);
+		return { receipt, uuid, wpawBalance };
 	}
 
-	async swapToBAN(swap: SwapWBANToBan): Promise<string> {
-		return this.processingQueue.addSwapToBan(swap);
+	async swapToPAW(swap: SwapWPAWToPaw): Promise<string> {
+		return this.processingQueue.addSwapToPaw(swap);
 	}
 
-	async processSwapToBAN(swap: SwapWBANToBan): Promise<any> {
+	async processSwapToPAW(swap: SwapWPAWToPaw): Promise<any> {
 		this.log.info(
-			`Swapping ${swap.amount} wBAN to BAN (txn: ${swap.hash}) into wallet "${swap.banWallet}"...`
+			`Swapping ${swap.amount} wPAW to PAW (txn: ${swap.hash}) into wallet "${swap.pawWallet}"...`
 		);
-		// check if the BAN were already sent
-		if (await this.usersDepositsService.containsUserSwapToBan(swap)) {
+		// check if the PAW were already sent
+		if (await this.usersDepositsService.containsUserSwapToPaw(swap)) {
 			this.log.warn(`Swap for transaction "${swap.hash}" was already done.`);
 			return {
 				hash: swap.hash,
-				wbanBalance: swap.wbanBalance,
+				wpawBalance: swap.wpawBalance,
 			};
 		}
-		// add the amount to user deposits and store user swap from wBAN to BAN
-		await this.usersDepositsService.storeUserSwapToBan(swap);
+		// add the amount to user deposits and store user swap from wPAW to PAW
+		await this.usersDepositsService.storeUserSwapToPaw(swap);
 		return {
 			hash: swap.hash,
-			wbanBalance: swap.wbanBalance,
+			wpawBalance: swap.wpawBalance,
 		};
 	}
 
 	async getHistory(
 		blockchainWallet: string,
-		banWallet: string
+		pawWallet: string
 	): Promise<History> {
 		const history = new History();
-		history.deposits = await this.usersDepositsService.getDeposits(banWallet);
+		history.deposits = await this.usersDepositsService.getDeposits(pawWallet);
 		history.withdrawals = await this.usersDepositsService.getWithdrawals(
-			banWallet
+			pawWallet
 		);
 		history.swaps = await this.usersDepositsService.getSwaps(
 			blockchainWallet,
-			banWallet
+			pawWallet
 		);
 		return history;
 	}
@@ -401,42 +392,42 @@ class Service {
 		return author === sanitizedAddress;
 	}
 
-	private async eventuallySendBan(
-		withdrawal: BananoUserWithdrawal
+	private async eventuallySendPaw(
+		withdrawal: PawUserWithdrawal
 	): Promise<{ pending: boolean; hash?: string }> {
 		const amountStr = withdrawal.amount;
 		const amount: BigNumber = ethers.utils.parseEther(amountStr);
 		// check if hot wallet balance is greater than or equal to amount to withdraw
-		const hotWalletBalance: BigNumber = await this.banano.getBalance(
-			config.BananoUsersDepositsHotWallet
+		const hotWalletBalance: BigNumber = await this.paw.getBalance(
+			config.PawUsersDepositsHotWallet
 		);
 		if (hotWalletBalance.lt(amount)) {
 			this.log.warn(
 				`Hot wallet balance of ${ethers.utils.formatEther(
 					hotWalletBalance
-				)} BAN is not enough to proceed with a withdrawal of ${amountStr} BAN. Adding a pending withdrawal to queue.`
+				)} PAW is not enough to proceed with a withdrawal of ${amountStr} PAW. Adding a pending withdrawal to queue.`
 			);
-			await this.processingQueue.addBananoUserPendingWithdrawal(withdrawal);
+			await this.processingQueue.addPawUserPendingWithdrawal(withdrawal);
 			return { pending: true };
 		}
-		// send the BAN to the user
-		const hash = await this.banano.sendBan(withdrawal.banWallet, amount);
+		// send the PAW to the user
+		const hash = await this.paw.sendPaw(withdrawal.pawWallet, amount);
 		return { pending: false, hash };
 	}
 
 	private withdrawalProcessor(
 		signature?: string
-	): Processor<BananoUserWithdrawal, any, string> {
+	): Processor<PawUserWithdrawal, any, string> {
 		return async (job) => {
-			const withdrawal: BananoUserWithdrawal = job.data;
-			const hash = await this.processWithdrawBAN(withdrawal, signature);
+			const withdrawal: PawUserWithdrawal = job.data;
+			const hash = await this.processWithdrawPAW(withdrawal, signature);
 			if (hash) {
 				return {
-					banWallet: withdrawal.banWallet,
+					pawWallet: withdrawal.pawWallet,
 					withdrawal: withdrawal.amount,
 					balance: ethers.utils.formatEther(
 						await this.usersDepositsService.getUserAvailableBalance(
-							withdrawal.banWallet
+							withdrawal.pawWallet
 						)
 					),
 					transaction: hash,
@@ -444,11 +435,11 @@ class Service {
 			}
 			if (withdrawal.attempt === 1) {
 				return {
-					banWallet: withdrawal.banWallet,
+					pawWallet: withdrawal.pawWallet,
 					withdrawal: withdrawal.amount,
 					balance: ethers.utils.formatEther(
 						await this.usersDepositsService.getUserAvailableBalance(
-							withdrawal.banWallet
+							withdrawal.pawWallet
 						)
 					),
 					transaction: "",
